@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 [RequireComponent(typeof(PlayerInput))]
 public class PacmanController : Unit
@@ -9,17 +11,37 @@ public class PacmanController : Unit
 
     private PlayerInput _inputController;
 
+    [SerializeField] private int _score = 0;
+    private Text _scoreText;
+
+    private int _eatenFood = 0;
+    public int EatenFood { get { return _eatenFood; } }
+
+
     void Start()
     {
         InitilaizeUnit();
         CurrentNode.Direction = Vector3.right;
         _inputController = GetComponent<PlayerInput>();
-
+        _scoreText = GameObject.Find("ScoreText").GetComponent<Text>();
     }
 
     void Update()
     {
+        if (GameManager.Instance.State != GameState.Playing)
+        {
+            Agent.isStopped = true;
+            return;
+        }
+        else
+        {
+            Agent.isStopped = false;
+        }
+
         Movement();
+        EatFood();
+
+        _scoreText.text = "Score: " + _score;
     }
 
     public override void Movement()
@@ -77,5 +99,23 @@ public class PacmanController : Unit
         NextNode = _nextNode;
 
         return true;
+    }
+
+    public void ResetScore()
+    {
+        _score = 0;
+        _eatenFood = 0;
+    }
+
+    public void EatFood()
+    {
+        var results = Physics.OverlapSphere(transform.position, 0.3f);
+        if (results.Where(x => x.gameObject.name.Contains("Food")).Count() != 0)
+        {
+            GameObject food = results.Where(x => x.gameObject.name.Contains("Food")).First().gameObject;
+            Destroy(food);
+            _score += 10;
+            _eatenFood++;
+        }
     }
 }

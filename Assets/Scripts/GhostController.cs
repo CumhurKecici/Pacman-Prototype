@@ -9,27 +9,73 @@ public class GhostController : Unit
 {
     private GameObject _pacmanObj;
     private Unit _pacmanUnit;
+    private PacmanController _pacman;
 
     [SerializeField] private GhostType _ghostType;
     [SerializeField] private GhostState _ghostState;
     [SerializeField] private GameObject _home;
     [SerializeField] private bool _isActive = false;
 
+    public bool IsActive { get { return _isActive; } set { _isActive = value; } }
+
     void Start()
     {
         InitilaizeUnit();
         _pacmanObj = GameObject.Find("Pacman");
+        _pacman = _pacmanObj.GetComponent<PacmanController>();
         _pacmanUnit = _pacmanObj.GetComponent<Unit>();
-
     }
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space))
-            EditorApplication.isPaused = true;
+        if (GameManager.Instance.State != GameState.Playing)
+        {
+            Agent.isStopped = true;
+            return;
+        }
+        else
+        {
+            Agent.isStopped = false;
+        }
+
+
+
 
         if (_isActive)
             Movement();
+        else
+        {
+            switch (_ghostType)
+            {
+                case GhostType.SpeedyPinky:
+                    if (_pacman.EatenFood > 30)
+                    {
+                        Agent.Warp(new Vector3(14, 0.5f, -11f));
+                        CurrentNode = new PathNode(transform);
+                        NextNode = null;
+                        _isActive = true;
+                    }
+                    break;
+                case GhostType.BashfulInky:
+                    if (_pacman.EatenFood > 50)
+                    {
+                        Agent.Warp(new Vector3(14, 0.5f, -11f));
+                        CurrentNode = new PathNode(transform);
+                        NextNode = null;
+                        _isActive = true;
+                    }
+                    break;
+                case GhostType.PokeyClyde:
+                    if (_pacman.EatenFood > 80)
+                    {
+                        Agent.Warp(new Vector3(14, 0.5f, -11f));
+                        CurrentNode = new PathNode(transform);
+                        NextNode = null;
+                        _isActive = true;
+                    }
+                    break;
+            }
+        }
     }
 
     public override void Movement()
@@ -130,7 +176,7 @@ public class GhostController : Unit
             {
                 if (!item.IsEndNode)
                 {
-                    var result = SearchPath(item, _availableRoads);
+                    var result = SearchPath(item, _availableRoads, GetTarget());
                     _availableRoads.AddRange(result);
                 }
             }
@@ -225,41 +271,8 @@ public class GhostController : Unit
         return true;
     }
 
-    //Method used to get shortest path to reach target - all units uses it when they are in scatter mode
-    private List<PathNode> SearchPath(PathNode node, List<PathNode> roadList)
-    {
-        List<PathNode> _availableRoads = new List<PathNode>();
-
-        foreach (var item in PathNode.MainDirections)
-        {
-            if (node.PrevNode != null)
-            {
-                if (node.PrevNode.Position == node.Position + item)
-                    continue;
-            }
-
-            NavMeshPath path = new NavMeshPath();
-            NavMesh.CalculatePath(node.Position, node.Position + item, NavMesh.AllAreas, path);
-            if (path.status == NavMeshPathStatus.PathComplete)
-            {
-                PathNode subNode = new PathNode();
-                subNode.Position = node.Position + item;
-                subNode.PrevNode = node;
-                subNode.Direction = subNode.Position - subNode.PrevNode.Position;
-                subNode.Cost += subNode.PrevNode.Cost;
-                if (subNode.Position == GetTarget())
-                    subNode.IsEndNode = true;
-                _availableRoads.Add(subNode);
-            }
-        }
-
-        roadList.Remove(node);
-
-        return _availableRoads;
-    }
-
     //Method used to get shortest path to reach target
-    private List<PathNode> SearchPath(PathNode node, List<PathNode> roadList, Vector3 target)
+    private List<PathNode> SearchPath(PathNode node, List<PathNode> roadList, Vector3 goalLocation)
     {
         List<PathNode> _availableRoads = new List<PathNode>();
 
@@ -280,7 +293,7 @@ public class GhostController : Unit
                 subNode.PrevNode = node;
                 subNode.Direction = subNode.Position - subNode.PrevNode.Position;
                 subNode.Cost += subNode.PrevNode.Cost;
-                if (subNode.Position == target)
+                if (subNode.Position == goalLocation)
                     subNode.IsEndNode = true;
                 _availableRoads.Add(subNode);
             }
@@ -303,5 +316,6 @@ public enum GhostType
 public enum GhostState
 {
     Chase,
-    Scatter
+    Scatter,
+    Frightened
 }

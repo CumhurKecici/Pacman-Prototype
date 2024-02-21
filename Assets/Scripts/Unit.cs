@@ -9,15 +9,16 @@ public abstract class Unit : MonoBehaviour
 {
     #region Private Variables
     private NavMeshAgent _agent;
+    [SerializeField] private Vector3 _startLocation;
     private bool _isDead = false;
     #endregion
 
     #region Properties    
     public NavMeshAgent Agent { get { return _agent; } }
+    public Vector3 StartLocation { get { return _startLocation; } }
     public bool IsDead { get { return _isDead; } }
     public PathNode CurrentNode;
     public PathNode NextNode;
-
     #endregion
 
     public void InitilaizeUnit()
