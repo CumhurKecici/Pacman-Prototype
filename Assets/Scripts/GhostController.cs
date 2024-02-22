@@ -140,7 +140,7 @@ public class GhostController : Unit
         if (_ghostState == GhostState.Frightened)
             return GetFrightenedRoad();
         else if (_ghostState == GhostState.Eaten)
-            return false;
+            return GoHomeRoad();
         else if (_ghostState == GhostState.Chase || _ghostState == GhostState.Scatter)
             return GetRoadWithOriginalLogic();
 
@@ -178,13 +178,9 @@ public class GhostController : Unit
                     return GetPokeyTarget();
             }
         }
-        else if (_ghostState == GhostState.Frightened)
-        {
-
-        }
         else if (_ghostState == GhostState.Eaten)
         {
-
+            return new Vector3(14, 0.5f, -11f);
         }
 
         return Vector3.zero;
@@ -234,8 +230,14 @@ public class GhostController : Unit
         else if (_ghostState == GhostState.Scatter || _ghostState == GhostState.Chase)
             _waveTimer += Time.deltaTime;
         else
+        {
+            if (CurrentNode.Position == new Vector3(14, 0.5f, -11f))
+            {
+                Agent.speed = 3.5f;
+                _ghostState = _prevState;
+            }
             return;
-
+        }
         switch (_wave)
         {
             case 1:
@@ -350,7 +352,12 @@ public class GhostController : Unit
         {
             var results = Physics.OverlapSphere(transform.position, 0.3f);
             if (results.Where(x => x.gameObject.name.Contains("Pacman")).Count() != 0)
+            {
+                CurrentNode.PrevNode = null;
+                NextNode = null;
+                Agent.speed = 7f;
                 _ghostState = GhostState.Eaten;
+            }
         }
     }
 
@@ -500,6 +507,30 @@ public class GhostController : Unit
         _nextNode.PrevNode = CurrentNode;
 
         NextNode = _nextNode;
+        return true;
+    }
+
+    private bool GoHomeRoad()
+    {
+        CurrentNode.PrepareRoads();
+
+        float distance = float.PositiveInfinity;
+        PathNode _nextNode = new PathNode();
+
+        foreach (var item in CurrentNode.OpenRoads)
+        {
+            float currentDistance = Vector3.Distance(GetTarget(), item);
+            if (currentDistance < distance)
+            {
+                distance = currentDistance;
+                _nextNode.Position = item;
+                _nextNode.Direction = _nextNode.Position - CurrentNode.Position;
+                _nextNode.PrevNode = CurrentNode;
+            }
+        }
+
+        NextNode = _nextNode;
+
         return true;
     }
 
