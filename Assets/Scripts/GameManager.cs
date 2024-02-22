@@ -7,14 +7,13 @@ public class GameManager : MonoBehaviour
     private static GameManager _instance;
 
     public static GameManager Instance { get { return _instance; } }
+    public GameState State;
 
     private Vector3 _mapSize = new Vector3(28, 0, 31);
     private Vector3[] _energizerLocations;
 
     [SerializeField] private GameObject _food;
     [SerializeField] private GameObject _energizer;
-
-    public GameState State;
 
     void Awake()
     {
@@ -30,8 +29,7 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
-            State = GameState.Paused;
+
     }
 
     public void NewGame()
@@ -51,22 +49,19 @@ public class GameManager : MonoBehaviour
             {
                 item.Agent.Warp(item.StartLocation);
                 item.CurrentNode = new Unit.PathNode(item.transform);
-                item.CurrentNode.Direction = Vector3.right;
+                item.CurrentNode.Direction = Vector3.left;
                 item.NextNode = null;
-                item.gameObject.GetComponent<PacmanController>().ResetScore();
+                item.gameObject.GetComponent<PacmanController>().Reset();
             }
             else
             {
                 item.Agent.Warp(item.StartLocation);
                 item.CurrentNode = new Unit.PathNode(item.transform);
                 item.NextNode = null;
-                if (item.gameObject.name.Contains("Shadow"))
-                    item.gameObject.GetComponent<GhostController>().IsActive = true;
-                else
-                    item.gameObject.GetComponent<GhostController>().IsActive = false;
+                GhostController ghostController = item.gameObject.GetComponent<GhostController>();
+                ghostController.Reset();
             }
         }
-
         NewGame();
     }
 

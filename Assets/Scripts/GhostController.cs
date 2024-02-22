@@ -1,7 +1,5 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -11,12 +9,20 @@ public class GhostController : Unit
     private Unit _pacmanUnit;
     private PacmanController _pacman;
 
+    private MeshRenderer _unitRenderer;
+
     [SerializeField] private GhostType _ghostType;
+    [SerializeField] private Material _NormalMat;
+    [SerializeField] private Material _FrightenedMat;
+    [SerializeField] private Material _EatenMat;
     [SerializeField] private GhostState _ghostState;
     [SerializeField] private GameObject _home;
     [SerializeField] private bool _isActive = false;
+    [SerializeField] private int _wave = 1;
+    [SerializeField] private float _waveTimer = 0;
 
-    public bool IsActive { get { return _isActive; } set { _isActive = value; } }
+    [SerializeField] private GhostState _prevState;
+    [SerializeField] private float _frightenedTimer = 0;
 
     void Start()
     {
@@ -24,6 +30,7 @@ public class GhostController : Unit
         _pacmanObj = GameObject.Find("Pacman");
         _pacman = _pacmanObj.GetComponent<PacmanController>();
         _pacmanUnit = _pacmanObj.GetComponent<Unit>();
+        _unitRenderer = GetComponent<MeshRenderer>();
     }
 
     void Update()
@@ -34,15 +41,22 @@ public class GhostController : Unit
             return;
         }
         else
-        {
             Agent.isStopped = false;
-        }
-
-
-
 
         if (_isActive)
+        {
             Movement();
+            StateSwitcher();
+
+            if (_ghostState == GhostState.Frightened)
+                _unitRenderer.material = _FrightenedMat;
+            else if (_ghostState == GhostState.Eaten)
+                _unitRenderer.material = _EatenMat;
+            else
+                _unitRenderer.material = _NormalMat;
+
+            EatOrGetEaten();
+        }
         else
         {
             switch (_ghostType)
@@ -84,6 +98,31 @@ public class GhostController : Unit
         if (Agent.hasPath)
             return;
 
+        if (!Agent.hasPath)
+        {
+            if (CurrentNode.Position == LeftGate)
+            {
+                CurrentNode.Position = RightGate;
+                NextNode = new PathNode();
+                NextNode.Position = CurrentNode.Position + CurrentNode.Direction;
+                NextNode.PrevNode = CurrentNode;
+                NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                Agent.Warp(RightGate);
+                ExecuteNode();
+            }
+            else if (CurrentNode.Position == RightGate)
+            {
+                CurrentNode.Position = LeftGate;
+                NextNode = new PathNode();
+                NextNode.Position = CurrentNode.Position + CurrentNode.Direction;
+                NextNode.PrevNode = CurrentNode;
+                NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                Agent.Warp(LeftGate);
+                ExecuteNode();
+            }
+        }
+
+
         FindNode();
         if (GetRoad())
             ExecuteNode();
@@ -98,8 +137,14 @@ public class GhostController : Unit
 
     public override bool GetRoad()
     {
-        return GetRoadWithOriginalLogic();
+        if (_ghostState == GhostState.Frightened)
+            return GetFrightenedRoad();
+        else if (_ghostState == GhostState.Eaten)
+            return false;
+        else if (_ghostState == GhostState.Chase || _ghostState == GhostState.Scatter)
+            return GetRoadWithOriginalLogic();
 
+        //This section currently not used in game
         switch (_ghostType)
         {
             case GhostType.ShadowBlinky:
@@ -119,22 +164,195 @@ public class GhostController : Unit
     {
         if (_ghostState == GhostState.Scatter)
             return _home.transform.position;
-
-        switch (_ghostType)
+        else if (_ghostState == GhostState.Chase)
         {
-            case GhostType.ShadowBlinky:
-                return GetShadowTarget();
-            case GhostType.SpeedyPinky:
-                return GetSpeedyTarget();
-            case GhostType.BashfulInky:
-                return GetBashfulTarget();
-            case GhostType.PokeyClyde:
-                return GetPokeyTarget();
+            switch (_ghostType)
+            {
+                case GhostType.ShadowBlinky:
+                    return GetShadowTarget();
+                case GhostType.SpeedyPinky:
+                    return GetSpeedyTarget();
+                case GhostType.BashfulInky:
+                    return GetBashfulTarget();
+                case GhostType.PokeyClyde:
+                    return GetPokeyTarget();
+            }
+        }
+        else if (_ghostState == GhostState.Frightened)
+        {
+
+        }
+        else if (_ghostState == GhostState.Eaten)
+        {
+
         }
 
         return Vector3.zero;
     }
 
+    public void Reset()
+    {
+        if (_ghostType == GhostType.ShadowBlinky)
+            _isActive = true;
+        else
+            _isActive = false;
+
+        _wave = 1;
+        _waveTimer = 0;
+        _ghostState = GhostState.Scatter;
+        _frightenedTimer = 0;
+    }
+
+    public void Runaway()
+    {
+        if (_isActive && _ghostState != GhostState.Frightened && _ghostState != GhostState.Eaten)
+        {
+            Agent.speed = 2f;
+            _frightenedTimer = 0;
+            _prevState = _ghostState;
+            _ghostState = GhostState.Frightened;
+            NextNode = CurrentNode.PrevNode;
+            NextNode.PrevNode = CurrentNode;
+            NextNode.Direction = NextNode.Position - CurrentNode.Position;
+            ExecuteNode();
+        }
+    }
+
+    private void StateSwitcher()
+    {
+        if (_ghostState == GhostState.Frightened)
+        {
+            if (_frightenedTimer >= 10f)
+            {
+                Agent.speed = 3.5f;
+                _ghostState = _prevState;
+            }
+
+            _frightenedTimer += Time.deltaTime;
+            return;
+        }
+        else if (_ghostState == GhostState.Scatter || _ghostState == GhostState.Chase)
+            _waveTimer += Time.deltaTime;
+        else
+            return;
+
+        switch (_wave)
+        {
+            case 1:
+                if (_ghostState == GhostState.Scatter)
+                {
+                    if (_waveTimer >= 7f)
+                    {
+                        _waveTimer = 0;
+                        _ghostState = GhostState.Chase;
+                        NextNode = CurrentNode.PrevNode;
+                        NextNode.PrevNode = CurrentNode;
+                        NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                        ExecuteNode();
+                    }
+                }
+                else if (_ghostState == GhostState.Chase)
+                {
+                    if (_waveTimer >= 20f)
+                    {
+                        _waveTimer = 0;
+                        _wave++;
+                        _ghostState = GhostState.Scatter;
+                        NextNode = CurrentNode.PrevNode;
+                        NextNode.PrevNode = CurrentNode;
+                        NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                        ExecuteNode();
+                    }
+                }
+                return;
+            case 2:
+                if (_ghostState == GhostState.Scatter)
+                {
+                    if (_waveTimer >= 7f)
+                    {
+                        _waveTimer = 0;
+                        _ghostState = GhostState.Chase;
+                        NextNode = CurrentNode.PrevNode;
+                        NextNode.PrevNode = CurrentNode;
+                        NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                        ExecuteNode();
+                    }
+                }
+                else if (_ghostState == GhostState.Chase)
+                {
+                    if (_waveTimer >= 20f)
+                    {
+                        _waveTimer = 0;
+                        _wave++;
+                        _ghostState = GhostState.Scatter;
+                        NextNode = CurrentNode.PrevNode;
+                        NextNode.PrevNode = CurrentNode;
+                        NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                        ExecuteNode();
+                    }
+                }
+                return;
+            case 3:
+                if (_ghostState == GhostState.Scatter)
+                {
+                    if (_waveTimer >= 5f)
+                    {
+                        _waveTimer = 0;
+                        _ghostState = GhostState.Chase;
+                        NextNode = CurrentNode.PrevNode;
+                        NextNode.PrevNode = CurrentNode;
+                        NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                        ExecuteNode();
+                    }
+                }
+                else if (_ghostState == GhostState.Chase)
+                {
+                    if (_waveTimer >= 20f)
+                    {
+                        _waveTimer = 0;
+                        _wave++;
+                        _ghostState = GhostState.Scatter;
+                        NextNode = CurrentNode.PrevNode;
+                        NextNode.PrevNode = CurrentNode;
+                        NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                        ExecuteNode();
+                    }
+                }
+                return;
+            case 4:
+                if (_ghostState == GhostState.Scatter)
+                {
+                    if (_waveTimer >= 5f)
+                    {
+                        _waveTimer = 0;
+                        _ghostState = GhostState.Chase;
+                        NextNode = CurrentNode.PrevNode;
+                        NextNode.PrevNode = CurrentNode;
+                        NextNode.Direction = NextNode.Position - CurrentNode.Position;
+                        ExecuteNode();
+                    }
+                }
+                return;
+        }
+    }
+
+    public void EatOrGetEaten()
+    {
+        if (_ghostState == GhostState.Chase || _ghostState == GhostState.Scatter)
+        {
+            var results = Physics.OverlapSphere(transform.position, 0.3f);
+            if (results.Where(x => x.gameObject.name.Contains("Pacman")).Count() != 0)
+            {
+                _pacman.Dead();
+            }
+        }
+        else if (_ghostState == GhostState.Frightened)
+        {
+            var results = Physics.OverlapSphere(transform.position, 0.3f);
+            if (results.Where(x => x.gameObject.name.Contains("Pacman")).Count() != 0)
+                _ghostState = GhostState.Eaten;
+        }
+    }
 
     #region Shadow - Blinky Movement
     private Vector3 GetShadowTarget() => _pacmanUnit.CurrentNode.Position;
@@ -271,6 +489,20 @@ public class GhostController : Unit
         return true;
     }
 
+    private bool GetFrightenedRoad()
+    {
+        CurrentNode.RandomizeRoads();
+        CurrentNode.PrepareRoads();
+
+        PathNode _nextNode = new PathNode();
+        _nextNode.Position = CurrentNode.Roads.Dequeue();
+        _nextNode.Direction = _nextNode.Position - CurrentNode.Position;
+        _nextNode.PrevNode = CurrentNode;
+
+        NextNode = _nextNode;
+        return true;
+    }
+
     //Method used to get shortest path to reach target
     private List<PathNode> SearchPath(PathNode node, List<PathNode> roadList, Vector3 goalLocation)
     {
@@ -317,5 +549,6 @@ public enum GhostState
 {
     Chase,
     Scatter,
-    Frightened
+    Frightened,
+    Eaten
 }

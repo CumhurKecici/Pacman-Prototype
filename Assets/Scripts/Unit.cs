@@ -10,15 +10,17 @@ public abstract class Unit : MonoBehaviour
     #region Private Variables
     private NavMeshAgent _agent;
     [SerializeField] private Vector3 _startLocation;
-    private bool _isDead = false;
+    [SerializeField] private GameObject _leftGate;
+    [SerializeField] private GameObject _rightGate;
     #endregion
 
     #region Properties    
     public NavMeshAgent Agent { get { return _agent; } }
     public Vector3 StartLocation { get { return _startLocation; } }
-    public bool IsDead { get { return _isDead; } }
     public PathNode CurrentNode;
     public PathNode NextNode;
+    public Vector3 LeftGate { get { return _leftGate.transform.position; } }
+    public Vector3 RightGate { get { return _rightGate.transform.position; } }
     #endregion
 
     public void InitilaizeUnit()
@@ -51,13 +53,6 @@ public abstract class Unit : MonoBehaviour
             CurrentNode = NextNode;
             NextNode = null;
         }
-    }
-
-    public void Dead()
-    {
-        _isDead = true;
-        MeshRenderer meshRenderer = GetComponent<MeshRenderer>();
-        meshRenderer.enabled = false;
     }
 
     #region Abstract Methods
